@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="http://code.jquery.com/jquery-1.11.1.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDj2y2xpGLOGFigmxYkXGkgL9BaNJz3sTw&signed_in=true"></script>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+
+    <meta charset="utf-8">
+    <title>Twitter App</title>
+    <style>
+      html, body {
+        height: 80%;
+        margin: 0;
+        padding: 0;
+      }
+      #map {
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Welcome To Our WebApp</h1>
+    <div id="map"></div>
+    <select id="menu" SIZE=6 onChange= "go(this.value)">
+        <option searchKeyword="1">basketball</option>
+        <option searchKeyword="2">football</option>
+        <option searchKeyword="3">trip</option>
+        <option searchKeyword="4">dog</option>
+        <option searchKeyword="5">cat</option>
+        <option searchKeyword="6">NBA</option>
+        <option searchKeyword="7">trip</option>
+        <option searchKeyword="8">ice cream</option>
+    </select>
+    <script>
+        var map;
+        var infowindow;
+        var socket = io();
+          socket.on('First message', function(data){
+            console.log(data.message);
+          }); 
+        var initlat = 0; 
+        var initlen = 0;
+        var zoomLevel = 2;
+        var icons = {
+            positive: {
+                url: 'http://emojipedia-us.s3.amazonaws.com/cache/66/29/66298a09196951d6dcd1109a4ae7ff3f.png',
+                scaledSize: new google.maps.Size(30, 30)
+            },
+            neutral: {
+                url: 'http://emojipedia-us.s3.amazonaws.com/cache/39/0e/390ec41f52a1a989e95dd2b55d4296db.png',
+                scaledSize: new google.maps.Size(30, 30)
+            },       
+            negative: {
+                url: 'http://emojipedia-us.s3.amazonaws.com/cache/63/d2/63d239de4b9480e8f6ba75046687d92e.png',
+                scaledSize: new google.maps.Size(30, 30)
+            }
+        };
+        socket.on('newcoming', function(message) {
+          console.log("newcoming data");
+          console.log(message);
+          var data = message.tweet;
+          GenerateContent(data);
+
+        });
+        socket.on('testInput', function(data) {
+          console.log(data);
+
+        });
+        function initialize() {
+            var mapOptions = {
+                zoom: zoomLevel,
+                center: {lat: initlat, lng: initlen},
+                mapTypeId: google.maps.MapTypeId.TERRAIN
+            };
+            map = new google.maps.Map(document.getElementById('map'),
+                    mapOptions);
+            google.maps.event.addListener(map, 'click', function(event) {
+                var myLatLng = event.latLng;
+                console.log(myLatLng.lat());
+                console.log(myLatLng.lng());
+                SearchRegin(myLatLng.lat(), myLatLng.lng());
+          });
+        }
+        function GenerateContent(info) {
+          var time = info.time; 
+          var user = info.user;
+          var text = info.text;
+          var geo = info.geo;
+          var lat = geo.lat;
+          var lon = geo.lon;
+          var myLatLng = {lat: lat, lng: lon};
+          var sentiment = info.sentiment;
+          console.log(lat);
+          console.log(lon);
+          console.log(sentiment);
+
+          var marker = new google.maps.Marker({
+            position: myLatLng,
+            map: map,
+            icon: icons[sentiment]
+          });      
+          google.maps.event.addListener(marker, "click", function (event) {
+                  var myLatLng = event.latLng;
+                  console.log(myLatLng.lat());
+                  console.log(myLatLng.lng());
+                if (infowindow) {
+                  infowindow.close();
+                }
+                  var contentString =  '<div id="content">'+
+                        '<div id="siteNotice">'+
+                        '</div>'+
+                        '<h1 id="firstHeading" class="Twitter message">Twitter message</h1>'+ 
+                        '<h2 id="secondHeading" class="user">' + 'Written By ：  ' + user + '</h1>'+       
+                        '<div id="bodyContent">'+ 'time :' + time + '</div>' + 
+                        '<div id="bodyContent">' +  text + '</div>' +
+                        '</div>';
+
+                  infowindow= new google.maps.InfoWindow({
+                      content: contentString     
+                  });
+
+                 infowindow.open(map, marker);
+          });
+  
+        }
+
+        google.maps.event.addDomListener(window, 'load', initialize);
+ 
+        function go(keys){
+           initlat = 0;
+            initlen = 0;
+            zoomLevel = 2;
+          initialize();
+          console.log(keys);
+          socket.emit('transferData', {key: keys});
+          socket.on('informationTransmission', function(Object) {
+              var data = Object.data;
+              console.log(data.length);
+              for (var i = 0; i < data.length; i++) {
+                console.log(data[i]._source);
+                GenerateContent(data[i]._source);
+              }
+          });
+        }
+
+      function SearchRegin(lat, leng) {
+            console.log("Get called");
+            initlat = lat;
+            initlen = leng;
+            zoomLevel = zoomLevel + 2;
+            initialize();
+        // var mapOptions = {
+        //         zoom: 5,
+        //         center: {lat: lat, lng: leng},
+        //         mapTypeId: google.maps.MapTypeId.TERRAIN
+        //     };
+        //     map = new google.maps.Map(document.getElementById('map'),
+        //             mapOptions);
+            socket.emit('serachRegion', {la : lat, len: leng});
+            socket.on('getResponse', function(Object) {
+                var data = Object.data;
+                console.log(data.length);
+
+            for (var i = 0; i < data.length; i++) {
+              console.log(data[i]._source);
+              GenerateContent(data[i]._source);
+            }
+        });
+        //
+      }
+
+    </script>
+
+  </body>
+</html>
